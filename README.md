@@ -1,2 +1,2 @@
-# RoBonjwa
-Reinforcement learning system to play Starcraft 2.
+# RoBoRL
+Reinforcement learning system in the roboschool environment.
