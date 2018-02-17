@@ -128,8 +128,9 @@ class DDPG:
             running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
             print('episode: {} steps: {} reward: {}'.format(episode_number, overall_step, running_reward))
 
-        self.save_models(self.save_path)
-        self.save_results(self.save_path, losses, reward_sums)
+        if self.save_path is not None:
+            self.save_models(self.save_path)
+            self.save_results(self.save_path, losses, reward_sums)
         return reward_sums, losses
 
     def run(self, render=True):
