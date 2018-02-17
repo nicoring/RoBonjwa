@@ -14,10 +14,11 @@ def run(args):
     actor = Actor(n_states, n_actions, args.actor_hidden)
     critic = Critic(n_states, n_actions, args.critic_hidden)
     try:
-        # memory, batch_size, gamma, tau, actor_lr, critic_lr, critic_decay, 
         ddpg = DDPG(env, actor, critic, args.replay_memory, args.batch_size, args.gamma,
-                    args.tau, args.lr_actor, args.lr_critic, args.decay_critic)
-        rewards, losses = ddpg.train(args.episodes)
+                    args.tau, args.lr_actor, args.lr_critic, args.decay_critic,
+                    render=args.render, evaluate=args.evaluate, save_path=args.save_path,
+                    save_every=args.save_every)
+        rewards, losses = ddpg.train(args.steps)
     finally:
         env.close()
 
@@ -27,13 +28,17 @@ if __name__ == '__main__':
     parser.add_argument('--critic_hidden', type=int, default=100)
     parser.add_argument('--actor_hidden', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--episodes', type=int, default=1000)
+    parser.add_argument('--steps', type=int, default=10000)
     parser.add_argument('--replay_memory', type=int, default=100000)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--tau', type=float, default=0.001)
     parser.add_argument('--lr_actor', type=float, default=1e-3)
     parser.add_argument('--lr_critic', type=float, default=1e-4)
     parser.add_argument('--decay_critic', type=float, default=1e-2)
+    parser.add_argument('--render', default=False, dest='render', action='store_true')
+    parser.add_argument('--evaluate', type=int, default=10)
+    parser.add_argument('--save_path', default=None)
+    parser.add_argument('--save_every', type=int, default=10)
 
     args = parser.parse_args()
     run(args)

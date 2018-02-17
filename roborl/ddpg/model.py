@@ -1,9 +1,11 @@
+import os
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
-class Cloneable:
+class MyModule(nn.Module):
     def clone(self):
         assert self.args
         model_clone = self.__class__(*self.args)
@@ -11,8 +13,19 @@ class Cloneable:
         model_clone.train(False)
         return model_clone
 
+    @classmethod
+    def load(cls, filename):
+        args = map(int, os.path.basename(filename).split('.')[0].split('-')[1].split('_'))
+        model = cls(*args)
+        model.load_state_dict(torch.load(filename))
+        return model
 
-class Actor(nn.Module, Cloneable):
+    def save(self, path, filename):
+        params_string = '_'.join(map(str, self.args))
+        torch.save(self.state_dict(), os.path.join(path, '%s-%s.model' % (filename, params_string)))
+
+
+class Actor(MyModule):
     def __init__(self, n_states, n_actions, n_hidden):
         super().__init__()
         self.args = (n_states, n_actions, n_hidden)
@@ -25,6 +38,9 @@ class Actor(nn.Module, Cloneable):
         for l in [self.lin1, self.lin2, self.lin3]:
             nn.init.xavier_uniform(l.weight)
 
+    def save(self, path):
+        super().save(path, 'actor')
+
     def forward(self, x):
         x = F.relu(self.lin1(x))
         x = F.relu(self.lin2(x))
@@ -32,7 +48,7 @@ class Actor(nn.Module, Cloneable):
         return x
 
 
-class Critic(nn.Module, Cloneable):
+class Critic(MyModule):
     def __init__(self, n_states, n_actions, n_hidden):
         super().__init__()
         self.args = (n_states, n_actions, n_hidden)
@@ -44,6 +60,9 @@ class Critic(nn.Module, Cloneable):
     def init_weights(self):
         for l in [self.lin_states, self.lin1, self.lin2]:
             nn.init.xavier_uniform(l.weight)
+
+    def save(self, path):
+        super().save(path, 'critic')
 
     def forward(self, x):
         s, a = x
