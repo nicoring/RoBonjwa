@@ -13,6 +13,7 @@ def all(args):
     for i in range(args.runs):
         learning_rate(args, i)
         tau(args, i)
+        gamma(args, i)
         replay_memory(args, i)
 
 def learning_rate(base_args, i):
@@ -38,6 +39,18 @@ def tau(base_args, i):
         args.save_path = path
         args.tau = tau
         run(args)
+
+
+def gamma(base_args, i):
+    for gamma in [0.99, 0.999, 0.9999]:
+        args = deepcopy(base_args)
+        folder = str(gamma)
+        path = os.path.join(args.save_path, 'gammas', folder, str(i))
+        os.makedirs(path, exist_ok=True)
+        args.save_path = path
+        args.gamma = gamma
+        run(args)
+
 
 def replay_memory(base_args, i):
     for size in [1e+3, 1e+4, 1e+5]:
@@ -89,6 +102,7 @@ if __name__ == '__main__':
         'all': all,
         'learning_rate': learning_rate,
         'tau': tau,
+        'gamma': gamma,
         'replay_memory': replay_memory
     }
 
