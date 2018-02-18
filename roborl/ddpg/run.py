@@ -4,7 +4,7 @@ import gym
 import roboschool
 
 from ddpg import DDPG
-from model import Actor, Critic
+from models import Actor, Critic
 
 def run(args):
     env = gym.make(args.env)

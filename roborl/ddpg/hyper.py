@@ -7,7 +7,7 @@ import gym
 import roboschool
 
 from ddpg import DDPG
-from model import Actor, Critic
+from models import Actor, Critic
 
 def all(args):
     for i in range(args.runs):
