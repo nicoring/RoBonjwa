@@ -17,7 +17,7 @@ class MyModule(nn.Module):
     def load(cls, filename):
         args = map(int, os.path.basename(filename).split('.')[0].split('-')[1].split('_'))
         model = cls(*args)
-        model.load_state_dict(torch.load(filename))
+        model.load_state_dict(torch.load(filename, map_location=lambda storage, loc: storage))
         return model
 
     def save(self, path, filename):

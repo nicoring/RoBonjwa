@@ -30,7 +30,7 @@ class ReplayMemory:
         next_states = torch.cat(batch.next_states)
         done = Variable(torch.from_numpy(np.where(batch.done, 0., 1.)).float().unsqueeze(1))
         if use_cuda:
-            states = batch.cuda()
+            states = states.cuda()
             actions = actions.cuda()
             rewards = rewards.cuda()
             next_states = next_states.cuda()
