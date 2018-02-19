@@ -154,7 +154,7 @@ class DDPG:
                 self.env.render()
             action = self.select_action(self.prep_state(state),
                                         exploration=False)
-            state, reward, done, _ = self.env.step(action.data.numpy()[0])
+            state, reward, done, _ = self.env.step(action.data.cpu().numpy()[0])
             reward_sum += reward
         return reward_sum
 
