@@ -5,6 +5,8 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
+use_cuda = torch.cuda.is_available()
+
 Transition = namedtuple('Transition',
                         ('state', 'action', 'reward', 'next_state', 'done'))
 Batch = namedtuple('Batch', ('states', 'actions', 'rewards', 'next_states', 'done'))
@@ -27,6 +29,12 @@ class ReplayMemory:
         rewards = Variable(torch.cat(batch.rewards).unsqueeze(1))
         next_states = torch.cat(batch.next_states)
         done = Variable(torch.from_numpy(np.where(batch.done, 0., 1.)).float().unsqueeze(1))
+        if use_cuda:
+            states = batch.cuda()
+            actions = actions.cuda()
+            rewards = rewards.cuda()
+            next_states = next_states.cuda()
+            done = done.cuda()
         return Batch(states, actions, rewards, next_states, done)
 
     def __len__(self):

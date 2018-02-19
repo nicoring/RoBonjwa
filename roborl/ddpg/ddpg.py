@@ -51,9 +51,6 @@ class DDPG:
         if len(self.memory) < self.batch_size:
             return None, None
         mini_batch = self.memory.sample_batch(self.batch_size)
-        if use_cuda:
-            for elem in mini_batch:
-                elem.cuda()
         critic_loss = self.train_critic(mini_batch)
         actor_loss = self.train_actor(mini_batch)
         self.update(self.actor_target, self.actor)
@@ -97,8 +94,6 @@ class DDPG:
         if use_cuda:
             state = state.cuda()
         action = self.actor(state)
-        if use_cuda:
-            action = action.cpu()
         if exploration:
             noise = self.random_process.sample()
             action = action + Variable(torch.from_numpy(noise).float())
@@ -121,7 +116,7 @@ class DDPG:
             while not done:
                 overall_step += 1
                 action = self.select_action(state)
-                next_state, reward, done, _ = self.env.step(action.data.numpy()[0])
+                next_state, reward, done, _ = self.env.step(action.data.cpu().numpy()[0])
                 next_state = self.prep_state(next_state)
                 reward = FloatTensor([reward])
                 self.memory.add(state, action, reward, next_state, done)
