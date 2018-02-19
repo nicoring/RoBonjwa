@@ -95,8 +95,10 @@ class DDPG:
             state = state.cuda()
         action = self.actor(state)
         if exploration:
-            noise = self.random_process.sample()
-            action = action + Variable(torch.from_numpy(noise).float())
+            noise = Variable(torch.from_numpy(self.random_process.sample()).float())
+            if use_cuda:
+                noise = noise.cuda()
+            action = action + noise
         return action
 
     def train(self, num_steps):
