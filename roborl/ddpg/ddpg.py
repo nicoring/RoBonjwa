@@ -9,6 +9,11 @@ from random_process import OrnsteinUhlenbeckProcess
 from memory import ReplayMemory
 
 
+use_cuda = torch.cuda.is_available()
+FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+Tensor = FloatTensor
+
+
 class DDPG:
     def __init__(self, env, actor_model, critic_model, memory=10000, batch_size=64, gamma=0.99, 
                  tau=0.001, actor_lr=1e-4, critic_lr=1e-3, critic_decay=1e-2, ou_theta=0.15,
@@ -18,6 +23,9 @@ class DDPG:
         self.actor_target = actor_model.clone()
         self.critic = critic_model
         self.critic_target = critic_model.clone()
+        if use_cuda:
+            for net in [self.actor, self.actor_target, self.critic, self.critic_target]:
+                net.cuda()
         self.memory = ReplayMemory(memory)
         self.batch_size = batch_size
         self.gamma = gamma
@@ -43,6 +51,9 @@ class DDPG:
         if len(self.memory) < self.batch_size:
             return None, None
         mini_batch = self.memory.sample_batch(self.batch_size)
+        if use_cuda:
+            for elem in mini_batch:
+                elem.cuda()
         critic_loss = self.train_critic(mini_batch)
         actor_loss = self.train_actor(mini_batch)
         self.update(self.actor_target, self.actor)
@@ -83,7 +94,11 @@ class DDPG:
         return Variable(torch.from_numpy(s).float().unsqueeze(0))
 
     def select_action(self, state, exploration=True):
+        if use_cuda:
+            state = state.cuda()
         action = self.actor(state)
+        if use_cuda:
+            action = action.cpu()
         if exploration:
             noise = self.random_process.sample()
             action = action + Variable(torch.from_numpy(noise).float())
@@ -108,7 +123,7 @@ class DDPG:
                 action = self.select_action(state)
                 next_state, reward, done, _ = self.env.step(action.data.numpy()[0])
                 next_state = self.prep_state(next_state)
-                reward = torch.FloatTensor([reward])
+                reward = FloatTensor([reward])
                 self.memory.add(state, action, reward, next_state, done)
                 state = next_state
                 reward_sum += reward[0]
