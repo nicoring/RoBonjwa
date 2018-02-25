@@ -79,7 +79,6 @@ class SharedControllerActor(MyModule):
         super().__init__()
         self.args = (n_states, controller_conf, controller_list, n_hidden)
         self.lin1 = nn.Linear(n_states, n_hidden)
-        self.lin2 = nn.Linear(n_hidden, n_hidden)
         self.controller_inputs, self.controller = self.create_controllers(controller_conf, controller_list, n_hidden)
         self.controller_list = controller_list
         self.init_weights()
@@ -106,10 +105,9 @@ class SharedControllerActor(MyModule):
 
     def forward(self, x):
         x = F.relu(self.lin1(x))
-        x = F.relu(self.lin2(x))
         outs = []
         for name, input_layer in zip(self.controller_list, self.controller_inputs):
-            xc = input_layer(x)
+            xc = F.relu(input_layer(x))
             outs.append(self.controller[name](xc))
         out = torch.cat(outs, 1)
         return F.tanh(out)
