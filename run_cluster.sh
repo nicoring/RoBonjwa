@@ -30,6 +30,6 @@ export TMPDIR=/disk/scratch/${STUDENT_ID}/
 export TMP=/disk/scratch/${STUDENT_ID}/
 
 # Activate the relevant virtual environment:
-source /home/${STUDENT_ID}/miniconda3/bin/activate mlp
+source /home/${STUDENT_ID}/miniconda3/bin/activate roboschool
 
 "$@"

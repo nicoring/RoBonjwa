@@ -124,7 +124,7 @@ class DDPG:
                 self.memory.add(state, action, reward, next_state, done)
                 state = next_state
                 reward_sum += reward[0]
-                losses.append(self.train_models())
+            losses.append(self.train_models())
 
             # debug stuff
             if self.evaluate is not None and (episode_number % self.evaluate == 0):
