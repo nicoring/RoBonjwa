@@ -48,6 +48,73 @@ class Actor(MyModule):
         return x
 
 
+class SharedControllerActor(MyModule):
+    def __init__(self, n_states, controller_conf, controller_list, n_hidden):
+        """
+        constructs a policy network with locally connected controllers
+        that can share weights
+
+        Args:
+            n_states: number of states that are the input to the policy
+            controller_conf: dictionary with confifs for low-level controllers
+            controller_list: list of controller names, if one name appears multiple times
+                then these controllers share weights
+            n_hidden: number of hidden units in the fully connected layer
+
+        >> # example controller conf:
+        >> controller_conf = {
+            'leg': {
+                'actions': 4,
+                'hidden': 50
+            }
+            'arm': {
+                'actions': 3,
+                'hidden': 50
+            }
+        }
+
+        >> # example controller list:
+        >> controller_list = ['arm', 'arm', 'leg', 'leg']
+        """
+        super().__init__()
+        self.args = (n_states, controller_conf, controller_list, n_hidden)
+        self.lin1 = nn.Linear(n_states, n_hidden)
+        self.lin2 = nn.Linear(n_hidden, n_hidden)
+        self.controller_inputs, self.controller = self.create_controllers(controller_conf, controller_list, n_hidden)
+        self.controller_list = controller_list
+        self.init_weights()
+
+    def create_controllers(self, controller_conf, controller_list, n_hidden):
+        shared_controller = {}
+        for name, conf in controller_conf.items():
+            # TODO: create arbitrary subnet based on conf
+            shared_controller[name] = nn.Linear(conf['hidden'] , conf['actions'])
+
+        controller_inputs = []
+        for name in controller_list:
+            n_output = controller_conf[name]['hidden']
+            controller_inputs.append(nn.Linear(n_hidden, n_output))
+
+        return controller_inputs, shared_controller
+
+    def init_weights(self):
+        for l in [self.lin1, self.lin2, *self.controller_inputs, *self.controller.values()]:
+            nn.init.xavier_uniform(l.weight)
+
+    def save(self, path):
+        super().save(path, 'actor')
+
+    def forward(self, x):
+        x = F.relu(self.lin1(x))
+        x = F.relu(self.lin2(x))
+        outs = []
+        for name, input_layer in zip(self.controller_list, self.controller_inputs):
+            xc = input_layer(x)
+            outs.append(self.controller[name](xc))
+        out = torch.cat(outs, 1)
+        return F.tanh(out)
+
+
 class Critic(MyModule):
     def __init__(self, n_states, n_actions, n_hidden):
         super().__init__()
