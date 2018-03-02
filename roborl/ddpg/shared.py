@@ -14,12 +14,12 @@ def run(args):
     controller_conf = {
         'leg': {
             'actions': 2,
-            'hidden': 20
+            'hidden': 40
         }
     }
     controller_list = ['leg', 'leg', 'leg', 'leg']
-    actor = SharedControllerActor(n_states, controller_conf, controller_list, args.actor_hidden)
-    critic = Critic(n_states, n_actions, args.critic_hidden)
+    actor = SharedControllerActor(n_states, controller_conf, controller_list, args.actor_hidden, args.batchnorm)
+    critic = Critic(n_states, n_actions, args.critic_hidden, args.batchnorm)
     try:
         ddpg = DDPG(env, actor, critic, args.replay_memory, args.batch_size, args.gamma,
                     args.tau, args.lr_actor, args.lr_critic, args.decay_critic,
@@ -46,6 +46,7 @@ if __name__ == '__main__':
     parser.add_argument('--evaluate', type=int, default=10)
     parser.add_argument('--save_path', default=None)
     parser.add_argument('--save_every', type=int, default=10)
+    parser.add_argument('--batchnorm', default=False, dest='batchnorm', action='store_true')
 
     args = parser.parse_args()
     args.env = 'RoboschoolAnt-v1'

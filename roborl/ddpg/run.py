@@ -4,13 +4,16 @@ import gym
 import roboschool
 
 from ddpg import DDPG
-from models import Actor, Critic
+from models import Actor, SharedControllerActor, Critic
 
 def run(args):
     env = gym.make(args.env)
     n_states = env.observation_space.shape[0]
     n_actions = env.action_space.shape[0]
-    actor = Actor.load(args.actor)
+    if 'shared' in args.actor:
+        actor = SharedControllerActor.load(args.actor)
+    else:
+        actor = Actor.load(args.actor)
     critic = Critic.load(args.critic)
     try:
         ddpg = DDPG(env, actor, critic)
