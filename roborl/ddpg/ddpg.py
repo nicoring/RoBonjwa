@@ -93,7 +93,9 @@ class DDPG:
     def select_action(self, state, exploration=True):
         if use_cuda:
             state = state.cuda()
+        self.actor.eval()
         action = self.actor(state)
+        self.actor.train()
         if exploration:
             noise = Variable(torch.from_numpy(self.random_process.sample()).float())
             if use_cuda:
@@ -129,7 +131,6 @@ class DDPG:
             # debug stuff
             if self.evaluate is not None and (episode_number % self.evaluate == 0):
                 r = self.run(render=self.render)
-                print('evaluation reward: %f' % r)
 
             if self.save_path is not None and (episode_number % self.save_every == 0):
                 self.save_models(self.save_path)
@@ -138,7 +139,8 @@ class DDPG:
             evaluation_reward = self.run(render=False)
             reward_sums.append((reward_sum, evaluation_reward))
             running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
-            print('episode: {} steps: {} reward: {}'.format(episode_number, overall_step, running_reward))
+            print('episode: {}  steps: {}  running train reward: {:.4f}  eval reward: {:.4f}'.format(episode_number, overall_step,
+                                                                                    running_reward, evaluation_reward))
 
         if self.save_path is not None:
             self.save_models(self.save_path)

@@ -1,4 +1,5 @@
 import os
+import pickle
 
 import torch
 import torch.nn as nn
@@ -15,23 +16,31 @@ class MyModule(nn.Module):
 
     @classmethod
     def load(cls, filename):
-        args = map(int, os.path.basename(filename).split('.')[0].split('-')[1].split('_'))
+        with open('%s-args.pkl' % filename, 'rb') as f:
+            args = pickle.load(f)
         model = cls(*args)
-        model.load_state_dict(torch.load(filename, map_location=lambda storage, loc: storage))
+        dict_filename = '%s.model' % filename
+        model.load_state_dict(torch.load(dict_filename, map_location=lambda storage, loc: storage))
         return model
 
     def save(self, path, filename):
-        params_string = '_'.join(map(str, self.args))
-        torch.save(self.state_dict(), os.path.join(path, '%s-%s.model' % (filename, params_string)))
+        args_file = os.path.join(path, '%s-args.pkl' % filename)
+        with open(args_file, 'wb') as f:
+            pickle.dump(self.args, f)
+        torch.save(self.state_dict(), os.path.join(path, '%s.model' % filename))
 
 
 class Actor(MyModule):
-    def __init__(self, n_states, n_actions, n_hidden):
+    def __init__(self, n_states, n_actions, n_hidden, use_batch_norm=False):
         super().__init__()
-        self.args = (n_states, n_actions, n_hidden)
+        self.args = (n_states, n_actions, n_hidden, use_batch_norm)
+        self.use_batch_norm = use_batch_norm
         self.lin1 = nn.Linear(n_states, n_hidden)
         self.lin2 = nn.Linear(n_hidden, n_hidden)
         self.lin3 = nn.Linear(n_hidden, n_actions)
+        if self.use_batch_norm:
+            self.bn_1 = nn.BatchNorm1d(n_hidden)
+            self.bn_2 = nn.BatchNorm1d(n_hidden)
         self.init_weights()
 
     def init_weights(self):
@@ -42,14 +51,20 @@ class Actor(MyModule):
         super().save(path, 'actor')
 
     def forward(self, x):
-        x = F.relu(self.lin1(x))
-        x = F.relu(self.lin2(x))
+        x = self.lin1(x)
+        if self.use_batch_norm:
+            x = self.bn_1(x)
+        x = F.relu(x)
+        x = self.lin2(x)
+        if self.use_batch_norm:
+            x = self.bn_1(x)
+        x = F.relu(x)
         x = F.tanh(self.lin3(x))
         return x
 
 
 class SharedControllerActor(MyModule):
-    def __init__(self, n_states, controller_conf, controller_list, n_hidden):
+    def __init__(self, n_states, controller_conf, controller_list, n_hidden, use_batch_norm=False):
         """
         constructs a policy network with locally connected controllers
         that can share weights
@@ -77,49 +92,84 @@ class SharedControllerActor(MyModule):
         >> controller_list = ['arm', 'arm', 'leg', 'leg']
         """
         super().__init__()
-        self.args = (n_states, controller_conf, controller_list, n_hidden)
+        self.args = (n_states, controller_conf, controller_list, n_hidden, use_batch_norm)
+        self.use_batch_norm = use_batch_norm
         self.lin1 = nn.Linear(n_states, n_hidden)
+        self.lin2 = nn.Linear(n_hidden, n_hidden)
         self.controller_inputs, self.controller = self.create_controllers(controller_conf, controller_list, n_hidden)
         self.controller_list = controller_list
+        if use_batch_norm:
+            self.bn_1 = nn.BatchNorm1d(n_hidden)
+            self.bn_2 = nn.BatchNorm1d(n_hidden)
+            self.controller_input_bns = self.controller_bn(self.controller_inputs)
         self.init_weights()
 
     def create_controllers(self, controller_conf, controller_list, n_hidden):
         shared_controller = {}
         for name, conf in controller_conf.items():
             # TODO: create arbitrary subnet based on conf
-            shared_controller[name] = nn.Linear(conf['hidden'] , conf['actions'])
+            l = nn.Linear(conf['hidden'] , conf['actions'])
+            self.add_module(name, l)
+            shared_controller[name] = l
 
         controller_inputs = []
-        for name in controller_list:
+        for i, name in enumerate(controller_list):
             n_output = controller_conf[name]['hidden']
-            controller_inputs.append(nn.Linear(n_hidden, n_output))
+            l = nn.Linear(n_hidden, n_output)
+            self.add_module('controller_input_%d' % i, l)
+            controller_inputs.append(l)
 
         return controller_inputs, shared_controller
+
+    def controller_bn(self, controller_inputs):
+        controller_input_bns = []
+        for i, input_layer in enumerate(controller_inputs):
+            bn = nn.BatchNorm1d(input_layer.out_features)
+            self.add_module('controller_input_bn_%d' % i, bn)
+            controller_input_bns.append(bn)
+        return controller_input_bns
 
     def init_weights(self):
         for l in [self.lin1, self.lin2, *self.controller_inputs, *self.controller.values()]:
             nn.init.xavier_uniform(l.weight)
 
     def save(self, path):
-        super().save(path, 'actor')
+        super().save(path, 'actor-shared')
 
     def forward(self, x):
-        x = F.relu(self.lin1(x))
+        x = self.lin1(x)
+        if self.use_batch_norm:
+            x = self.bn_1(x)
+        x = F.relu(x)
+        x = self.lin2(x)
+        if self.use_batch_norm:
+            x = self.bn_2(x)
+        x = F.relu(x)
+ 
         outs = []
+        i = 0
         for name, input_layer in zip(self.controller_list, self.controller_inputs):
-            xc = F.relu(input_layer(x))
+            xc = input_layer(x)
+            if self.use_batch_norm:
+                xc = self.controller_input_bns[i](xc)
+                i += 1
+            sc = F.relu(xc)
             outs.append(self.controller[name](xc))
         out = torch.cat(outs, 1)
         return F.tanh(out)
 
 
 class Critic(MyModule):
-    def __init__(self, n_states, n_actions, n_hidden):
+    def __init__(self, n_states, n_actions, n_hidden, use_batch_norm=False):
         super().__init__()
-        self.args = (n_states, n_actions, n_hidden)
+        self.args = (n_states, n_actions, n_hidden, use_batch_norm)
+        self.use_batch_norm = use_batch_norm
         self.lin_states = nn.Linear(n_states, n_hidden)
         self.lin1 = nn.Linear(n_hidden + n_actions, n_hidden)
         self.lin2 = nn.Linear(n_hidden, 1)
+        if self.use_batch_norm:
+            self.bn_states = nn.BatchNorm1d(n_hidden)
+            self.bn_1 = nn.BatchNorm1d(n_hidden)
         self.init_weights()
 
     def init_weights(self):
@@ -131,7 +181,13 @@ class Critic(MyModule):
 
     def forward(self, x):
         s, a = x
-        states_hidden = F.relu(self.lin_states(s))
-        x = F.relu(self.lin1(torch.cat([states_hidden, a], 1)))
+        s = self.lin_states(s)
+        if self.use_batch_norm:
+            s = self.bn_states(s)
+        states_hidden = F.relu(s)
+        x = self.lin1(torch.cat([states_hidden, a], 1))
+        if self.use_batch_norm:
+            x = self.bn_1(x)
+        x = F.relu(x)
         x = self.lin2(x)
         return x
