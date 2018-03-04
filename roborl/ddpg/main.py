@@ -18,6 +18,8 @@ def run(args):
                     args.tau, args.lr_actor, args.lr_critic, args.decay_critic,
                     render=args.render, evaluate=args.evaluate, save_path=args.save_path,
                     save_every=args.save_every)
+        if args.warmup:
+            ddpg.warmup(10*args.batch_size)
         rewards, losses = ddpg.train(args.steps)
     finally:
         env.close()
@@ -36,6 +38,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr_critic', type=float, default=1e-4)
     parser.add_argument('--decay_critic', type=float, default=1e-2)
     parser.add_argument('--render', default=False, dest='render', action='store_true')
+    parser.add_argument('--warmup', default=False, dest='warmup', action='store_true')
     parser.add_argument('--evaluate', type=int, default=10)
     parser.add_argument('--save_path', default=None)
     parser.add_argument('--save_every', type=int, default=10)
