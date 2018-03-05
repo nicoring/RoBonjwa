@@ -17,7 +17,8 @@ Tensor = FloatTensor
 class DDPG:
     def __init__(self, env, actor_model, critic_model, memory=10000, batch_size=64, gamma=0.99, 
                  tau=0.001, actor_lr=1e-4, critic_lr=1e-3, critic_decay=1e-2, ou_theta=0.15,
-                 ou_sigma=0.2, render=None, evaluate=None, save_path=None, save_every=10):
+                 ou_sigma=0.2, render=None, evaluate=None, save_path=None, save_every=10,
+                 render_every=10, train_per_step=True):
         self.env = env
         self.actor = actor_model
         self.actor_target = actor_model.clone()
@@ -36,9 +37,11 @@ class DDPG:
                                        weight_decay=critic_decay)
         self.optim_actor = optim.Adam(self.actor.parameters(), lr=actor_lr)
         self.render = render
+        self.render_every = render_every
         self.evaluate = evaluate
         self.save_path = save_path
         self.save_every = save_every
+        self.train_per_step = train_per_step
 
     def update(self, target, source):
         zipped = zip(target.parameters(), source.parameters())
@@ -93,13 +96,34 @@ class DDPG:
     def select_action(self, state, exploration=True):
         if use_cuda:
             state = state.cuda()
+        self.actor.eval()
         action = self.actor(state)
+        self.actor.train()
         if exploration:
             noise = Variable(torch.from_numpy(self.random_process.sample()).float())
             if use_cuda:
                 noise = noise.cuda()
             action = action + noise
         return action
+
+    def step(self, action):
+        next_state, reward, done, _ = self.env.step(action.data.cpu().numpy()[0])
+        next_state = self.prep_state(next_state)
+        reward = FloatTensor([reward])
+        return next_state, reward, done
+
+    def warmup(self, num_steps):
+        overall_step = 0
+        while overall_step <= num_steps:
+            done = False
+            state = self.prep_state(self.env.reset())
+            self.random_process.reset()
+            while not done:
+                overall_step += 1
+                action = self.select_action(state)
+                next_state, reward, done = self.step(action)
+                self.memory.add(state, action, reward, next_state, done)
+                state = next_state
 
     def train(self, num_steps):
         running_reward = None
@@ -118,27 +142,26 @@ class DDPG:
             while not done:
                 overall_step += 1
                 action = self.select_action(state)
-                next_state, reward, done, _ = self.env.step(action.data.cpu().numpy()[0])
-                next_state = self.prep_state(next_state)
-                reward = FloatTensor([reward])
+                next_state, reward, done = self.step(action)
                 self.memory.add(state, action, reward, next_state, done)
                 state = next_state
                 reward_sum += reward[0]
-            losses.append(self.train_models())
+                if self.train_per_step:
+                    losses.append(self.train_models())
+            if not self.train_per_step:
+               losses.append(self.train_models())
 
-            # debug stuff
-            if self.evaluate is not None and (episode_number % self.evaluate == 0):
-                r = self.run(render=self.render)
-                print('evaluation reward: %f' % r)
+            render_this_episode = self.render and (episode_number % self.render_every == 0)
+            evaluation_reward = self.run(render=render_this_episode)
+            reward_sums.append((reward_sum, evaluation_reward))
 
             if self.save_path is not None and (episode_number % self.save_every == 0):
                 self.save_models(self.save_path)
                 self.save_results(self.save_path, losses, reward_sums)
 
-            evaluation_reward = self.run(render=False)
-            reward_sums.append((reward_sum, evaluation_reward))
             running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
-            print('episode: {} steps: {} reward: {}'.format(episode_number, overall_step, running_reward))
+            print('episode: {}  steps: {}  running train reward: {:.4f}  eval reward: {:.4f}'.format(episode_number, overall_step,
+                                                                                    running_reward, evaluation_reward))
 
         if self.save_path is not None:
             self.save_models(self.save_path)
