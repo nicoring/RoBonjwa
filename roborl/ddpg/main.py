@@ -42,8 +42,10 @@ if __name__ == '__main__':
     parser.add_argument('--evaluate', type=int, default=10)
     parser.add_argument('--save_path', default=None)
     parser.add_argument('--save_every', type=int, default=10)
-    parser.add_argument('--train_per_episode', default=False, dest='train_per_step', action='store_False')
-    parser.add_argument('--train_per_step', default=True, dest='train_per_step', action='store_True')
+    train_when_parser = parser.add_mutually_exclusive_group(required=False)
+    train_when_parser.add_argument('--train_per_episode', dest='train_per_step', action='store_false')
+    train_when_parser.add_argument('--train_per_step', dest='train_per_step', action='store_true')
+    parser.set_defaults(train_per_step=True)
 
     args = parser.parse_args()
     run(args)
