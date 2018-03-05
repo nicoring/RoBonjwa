@@ -17,7 +17,7 @@ def run(args):
         ddpg = DDPG(env, actor, critic, args.replay_memory, args.batch_size, args.gamma,
                     args.tau, args.lr_actor, args.lr_critic, args.decay_critic,
                     render=args.render, evaluate=args.evaluate, save_path=args.save_path,
-                    save_every=args.save_every)
+                    save_every=args.save_every, train_per_step=args.train_per_step)
         if args.warmup:
             ddpg.warmup(10*args.batch_size)
         rewards, losses = ddpg.train(args.steps)
@@ -42,6 +42,9 @@ if __name__ == '__main__':
     parser.add_argument('--evaluate', type=int, default=10)
     parser.add_argument('--save_path', default=None)
     parser.add_argument('--save_every', type=int, default=10)
+    parser.add_argument('--warmup', default=False, dest='warmup', action='store_true')
+    parser.add_argument('--train_per_episode', default=False, dest='train_per_step', action='store_False')
+    parser.add_argument('--train_per_step', default=True, dest='train_per_step', action='store_True')
 
     args = parser.parse_args()
     run(args)
