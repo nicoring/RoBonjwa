@@ -42,7 +42,6 @@ if __name__ == '__main__':
     parser.add_argument('--evaluate', type=int, default=10)
     parser.add_argument('--save_path', default=None)
     parser.add_argument('--save_every', type=int, default=10)
-    parser.add_argument('--warmup', default=False, dest='warmup', action='store_true')
     parser.add_argument('--train_per_episode', default=False, dest='train_per_step', action='store_False')
     parser.add_argument('--train_per_step', default=True, dest='train_per_step', action='store_True')
 
