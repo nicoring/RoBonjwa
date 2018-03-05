@@ -6,6 +6,7 @@
 #SBATCH -o logs/out  # send stdout to sample_experiment_outfile
 #SBATCH -e logs/err  # send stderr to sample_experiment_errfile
 #SBATCH -t 8:00:00  # time requested in hour:minute:secon
+#SBATCH --signal=USR1
 
 #To be used before srun so that interactive sessions are run with gpu support
 export CUDA_HOME=/opt/cuda-8.0.44

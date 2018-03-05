@@ -1,4 +1,5 @@
 import os
+import pickle
 
 import numpy as np
 import torch
@@ -42,6 +43,11 @@ class DDPG:
         self.save_path = save_path
         self.save_every = save_every
         self.train_per_step = train_per_step
+        self.overall_step = 0
+        self.overall_episode_number = 0
+        self.running_reward = None
+        self.reward_sums = []
+        self.losses = []
 
     def update(self, target, source):
         zipped = zip(target.parameters(), source.parameters())
@@ -113,60 +119,56 @@ class DDPG:
         return next_state, reward, done
 
     def warmup(self, num_steps):
-        overall_step = 0
-        while overall_step <= num_steps:
+        warmup_step = 0
+        while warmup_step <= num_steps:
             done = False
             state = self.prep_state(self.env.reset())
             self.random_process.reset()
             while not done:
-                overall_step += 1
+                warmup_step += 1
                 action = self.select_action(state)
                 next_state, reward, done = self.step(action)
                 self.memory.add(state, action, reward, next_state, done)
                 state = next_state
 
     def train(self, num_steps):
-        running_reward = None
-        reward_sums = []
-        losses = []
-        overall_step = 0
-        episode_number = 0
+        train_step = 0
 
-        while overall_step <= num_steps:
-            episode_number += 1
+        while train_step <= num_steps:
+            self.overall_episode_number += 1
             done = False
             state = self.prep_state(self.env.reset())
             reward_sum = 0
             self.random_process.reset()
 
             while not done:
-                overall_step += 1
+                self.overall_step += 1
+                train_step += 1
                 action = self.select_action(state)
                 next_state, reward, done = self.step(action)
                 self.memory.add(state, action, reward, next_state, done)
                 state = next_state
                 reward_sum += reward[0]
                 if self.train_per_step:
-                    losses.append(self.train_models())
+                    self.losses.append(self.train_models())
             if not self.train_per_step:
-               losses.append(self.train_models())
+               self.losses.append(self.train_models())
 
-            render_this_episode = self.render and (episode_number % self.render_every == 0)
+            render_this_episode = self.render and (self.overall_episode_number % self.render_every == 0)
             evaluation_reward = self.run(render=render_this_episode)
-            reward_sums.append((reward_sum, evaluation_reward))
+            self.reward_sums.append((reward_sum, evaluation_reward))
 
-            if self.save_path is not None and (episode_number % self.save_every == 0):
+            if self.save_path is not None and (self.overall_episode_number % self.save_every == 0):
                 self.save_models(self.save_path)
-                self.save_results(self.save_path, losses, reward_sums)
+                self.save_results(self.save_path, self.losses, self.reward_sums)
 
-            running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
-            print('episode: {}  steps: {}  running train reward: {:.4f}  eval reward: {:.4f}'.format(episode_number, overall_step,
-                                                                                    running_reward, evaluation_reward))
+            self.running_reward = reward_sum if self.running_reward is None else self.running_reward * 0.99 + reward_sum * 0.01
+            msg = 'episode: {}  steps: {}  running train reward: {:.4f}  eval reward: {:.4f}'
+            print(msg.format(self.overall_episode_number, self.overall_step, self.running_reward, evaluation_reward))
 
         if self.save_path is not None:
-            self.save_models(self.save_path)
-            self.save_results(self.save_path, losses, reward_sums)
-        return reward_sums, losses
+            self.save(self.save_path)
+        return self.reward_sums, self.losses
 
     def run(self, render=True):
         state = self.env.reset()
@@ -181,6 +183,41 @@ class DDPG:
             reward_sum += reward
         return reward_sum
 
+    def load_state(self, path):
+        filename = os.path.join(path, 'ddpg_state.pkl')
+        with open(filename, 'rb') as f:
+            state = pickle.load(f)
+            self.__dict__.update(state)
+
+    def load_memory(self, path):
+        self.memory.load(path)
+
+    def load_optim_dicts(self, path):
+        critic_filename = os.path.join(path, 'critic.optim')
+        actor_filename = os.path.join(path, 'actor.optim')
+        self.optim_critic.load_state_dict(torch.load(critic_filename, map_location=lambda storage, loc: storage))
+        self.optim_actor.load_state_dict(torch.load(actor_filename, map_location=lambda storage, loc: storage))
+
+    def save(self, path):
+        self.save_models(path)
+        self.save_results(path, self.losses, self.reward_sums)
+        self.save_memory(path)
+        self.save_optim_dicts(path)
+        self.save_state(path)
+
+    def save_optim_dicts(self, path):
+        critic_filename = os.path.join(path, 'critic.optim')
+        actor_filename = os.path.join(path, 'actor.optim')
+        torch.save(self.optim_critic.state_dict(), critic_filename)
+        torch.save(self.optim_actor.state_dict(), actor_filename)
+
+    def save_state(self, path):
+        params = ['overall_step', 'overall_episode_number', 'running_reward', 'reward_sums', 'losses']
+        state = dict([(k, v) for k, v in self.__dict__.items() if k in params])
+        filename = os.path.join(path, 'ddpg_state.pkl')
+        with open(filename, 'wb') as f:
+            pickle.dump(state, f)
+
     def save_models(self, path):
         self.actor.save(path)
         self.critic.save(path)
@@ -190,3 +227,6 @@ class DDPG:
         rewards = np.array(rewards)
         np.savetxt(os.path.join(path, 'losses.csv'), losses, delimiter=',', header='critic,actor', comments='')
         np.savetxt(os.path.join(path, 'rewards.csv'), rewards, delimiter=',', header='train,evaluation', comments='')
+
+    def save_memory(self, path):
+        self.memory.save(path)
