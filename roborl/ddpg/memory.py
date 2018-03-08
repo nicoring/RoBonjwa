@@ -1,5 +1,7 @@
+import os
 from collections import namedtuple, deque
 import random
+import pickle
 
 import numpy as np
 import torch
@@ -39,3 +41,14 @@ class ReplayMemory:
 
     def __len__(self):
         return len(self.memory)
+
+    def save(self, path):
+        filename = os.path.join(path, 'memory.pkl')
+        with open(filename, 'wb') as f:
+            pickle.dump(self.memory, f)
+
+    def load(self, path):
+        filename = os.path.join(path, 'memory.pkl')
+        with open(filename, 'rb') as f:
+            transitions = pickle.load(f)
+            self.memory.extend(transitions)
