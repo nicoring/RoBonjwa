@@ -57,7 +57,7 @@ class Actor(MyModule):
         x = F.relu(x)
         x = self.lin2(x)
         if self.use_batch_norm:
-            x = self.bn_1(x)
+            x = self.bn_2(x)
         x = F.relu(x)
         x = F.tanh(self.lin3(x))
         return x
