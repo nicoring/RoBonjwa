@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 
+from torch.autograd import Variable
+
 class ParamNoise:
 
     def __init__(self, batch_size, memory, sigma=0.1, delta=0.1, alpha=1.01):
@@ -21,8 +23,7 @@ class ParamNoise:
         if len(self.memory) < self.batch_size:
             return
         dist = self.distance(model, perturbed_model)
-        print(dist)
-        if dist <= self.delta:
+        if dist.data.numpy() <= self.delta:
             self.sigma *= self.alpha
         else:
             self.sigma *= 1 / self.alpha
