@@ -16,7 +16,7 @@ def run(args):
         actor = Actor.load(os.path.join(args.save_path, 'actor'))
         critic = Critic.load(os.path.join(args.save_path, 'critic'))
     else:
-        actor = Actor(n_states, n_actions, args.actor_hidden, args.batchnorm)
+        actor = Actor(n_states, n_actions, args.actor_hidden, args.batchnorm, args.layernorm)
         critic = Critic(n_states, n_actions, args.critic_hidden, args.batchnorm)
     try:
         ddpg = DDPG(env, actor, critic, args.replay_memory, args.batch_size, args.gamma,
@@ -60,6 +60,6 @@ if __name__ == '__main__':
     parser.set_defaults(train_per_step=True)
     parser.add_argument('--batchnorm', default=False, dest='batchnorm', action='store_true')
     parser.add_argument('--continue', default=False, dest='continue_training', action='store_true')
-
+    parser.add_argument('--layernorm', default=False, dest='layernorm', action='store_true')
     args = parser.parse_args()
     run(args)
