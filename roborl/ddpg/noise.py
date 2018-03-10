@@ -14,11 +14,14 @@ class ParamNoise:
     def distance(self, model, perturbed_model):
         ''' DDPG Distance '''
         batch = self.memory.sample_batch(self.batch_size)
-        return torch.sqrt(torch.mean((model(batch.state) - perturbed_model(batch.state))**2))
+        return torch.sqrt(torch.mean((model(batch.states) - perturbed_model(batch.states))**2))
 
     def update_sigma(self, model, perturbed_model):
         '''Updates sigma at each timestep'''
+        if len(self.memory) < self.batch_size:
+            return
         dist = self.distance(model, perturbed_model)
+        print(dist)
         if dist <= self.delta:
             self.sigma *= self.alpha
         else:
@@ -28,7 +31,7 @@ class ParamNoise:
         perturbed_model = model.clone()
         for param in perturbed_model.parameters():
             noise = torch.normal(means=torch.zeros_like(param), std=self.sigma)
-            param.add_(noise)
+            param.add(noise)
         return perturbed_model
 
     def reset(self):

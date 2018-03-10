@@ -1,8 +1,12 @@
 import numpy as np
 import torch
+from torch.autograd import Variable
 
 from random_process import OrnsteinUhlenbeckProcess
 from noise import ParamNoise
+
+
+use_cuda = torch.cuda.is_available()
 
 class ActionNoisePolicy:
 
@@ -34,14 +38,14 @@ class ParamNoisePolicy:
         self.param_noise = ParamNoise(batch_size, memory)
         self.perturbed_model = self.param_noise.perturb_model(self.actor)
 
-    def select_action(self, state, exploration=True)
+    def select_action(self, state, exploration=True):
         if use_cuda:
             state = state.cuda()
         if exploration:
             self.perturbed_model.eval()
             action = self.perturbed_model(state)
             self.perturbed_model.train()
-            self.param.noise.update_sigma(self.actor, perturbed_model)
+            self.param_noise.update_sigma(self.actor, self.perturbed_model)
         else:
             self.actor.eval()
             action = self.actor(state)
