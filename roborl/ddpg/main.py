@@ -23,7 +23,7 @@ def run(args):
                     args.tau, args.lr_actor, args.lr_critic, args.decay_critic,
                     render=args.render, evaluate=args.evaluate, save_path=args.save_path,
                     save_every=args.save_every, train_per_step=args.train_per_step,
-                    exploration_policy=args.exploration_policy)
+                    exploration_type=args.exploration_type)
         signal.signal(signal.SIGUSR1, lambda a, b: ddpg.save(args.save_path))
         if args.continue_training:
             ddpg.load_state(args.save_path)
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     parser.add_argument('--evaluate', type=int, default=10)
     parser.add_argument('--save_path', default=None)
     parser.add_argument('--save_every', type=int, default=10)
-    parser.add_argument('--exploration_policy', type=str, default='action')
+    parser.add_argument('--exploration_type', choices=['action', 'param'], default='action')
     train_when_parser = parser.add_mutually_exclusive_group(required=False)
     train_when_parser.add_argument('--train_per_episode', dest='train_per_step', action='store_false')
     train_when_parser.add_argument('--train_per_step', dest='train_per_step', action='store_true')

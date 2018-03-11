@@ -11,7 +11,7 @@ class ParamNoise:
         self.memory = memory
         self.sigma = sigma
         self.delta = delta
-        self.orig_sigma = sigma
+        self.initial_sigma = sigma
 
     def distance(self, model, perturbed_model):
         ''' DDPG Distance '''
@@ -36,7 +36,7 @@ class ParamNoise:
         return perturbed_model
 
     def reset(self):
-        self.sigma = self.orig_sigma
+        self.sigma = self.initial_sigma
         
 
 

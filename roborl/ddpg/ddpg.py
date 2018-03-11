@@ -19,7 +19,7 @@ class DDPG:
     def __init__(self, env, actor_model, critic_model, memory=10000, batch_size=64, gamma=0.99, 
                  tau=0.001, actor_lr=1e-4, critic_lr=1e-3, critic_decay=1e-2, ou_theta=0.15,
                  ou_sigma=0.2, render=None, evaluate=None, save_path=None, save_every=10,
-                 render_every=10, train_per_step=True, exploration_policy='action',
+                 render_every=10, train_per_step=True, exploration_type='action',
                  param_noise_bs=32):
         self.env = env
         self.actor = actor_model
@@ -33,7 +33,7 @@ class DDPG:
         self.batch_size = batch_size
         self.gamma = gamma
         self.tau = tau
-        if exploration_policy == 'action':
+        if exploration_type == 'action':
             self.exploration = ActionNoisePolicy(self.actor, env, ou_theta, ou_sigma)
         else:
             self.exploration = ParamNoisePolicy(self.actor, param_noise_bs, self.memory)
