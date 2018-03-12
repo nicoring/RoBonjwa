@@ -33,7 +33,7 @@ class MyModule(nn.Module):
 class Actor(MyModule):
     def __init__(self, n_states, n_actions, n_hidden, use_batch_norm=False, use_layer_norm=False):
         super().__init__()
-        self.args = (n_states, n_actions, n_hidden, use_batch_norm)
+        self.args = (n_states, n_actions, n_hidden, use_batch_norm, use_layer_norm)
         if use_batch_norm and use_layer_norm:
             raise ValueError("Dont use both batch and layer norm")
         self.use_batch_norm = use_batch_norm

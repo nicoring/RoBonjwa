@@ -31,8 +31,9 @@ class ParamNoise:
     def perturb_model(self, model):
         perturbed_model = model.clone()
         for param in perturbed_model.parameters():
-            noise = torch.normal(means=torch.zeros_like(param), std=self.sigma)
-            param.add(noise)
+            noise = torch.normal(mean=torch.zeros_like(param), std=self.sigma)
+            param.requires_grad = False
+            param.add_(noise)
         return perturbed_model
 
     def reset(self):
