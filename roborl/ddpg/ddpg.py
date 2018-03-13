@@ -19,8 +19,7 @@ class DDPG:
     def __init__(self, env, actor_model, critic_model, memory=10000, batch_size=64, gamma=0.99, 
                  tau=0.001, actor_lr=1e-4, critic_lr=1e-3, critic_decay=1e-2, ou_theta=0.15,
                  ou_sigma=0.2, render=None, evaluate=None, save_path=None, save_every=10,
-                 render_every=10, train_per_step=True, exploration_type='action',
-                 param_noise_bs=32):
+                 render_every=10, num_trainings=100, exploration_type='action', param_noise_bs=32):
         self.env = env
         self.actor = actor_model
         self.actor_target = actor_model.clone()
@@ -45,11 +44,13 @@ class DDPG:
         self.evaluate = evaluate
         self.save_path = save_path
         self.save_every = save_every
-        self.train_per_step = train_per_step
+        self.num_trainings = num_trainings
+        # state
         self.overall_step = 0
         self.overall_episode_number = 0
         self.running_reward = None
         self.reward_sums = []
+        self.eval_reward_sums = []
         self.losses = []
 
     def update(self, target, source):
@@ -125,7 +126,7 @@ class DDPG:
     def train(self, num_steps):
         train_step = 0
 
-        while train_step <= num_steps:
+        while num_steps == None or train_step <= num_steps:
             self.overall_episode_number += 1
             done = False
             state = self.prep_state(self.env.reset())
@@ -140,26 +141,27 @@ class DDPG:
                 self.memory.add(state, action, reward, next_state, done)
                 state = next_state
                 reward_sum += reward[0]
-                if self.train_per_step:
-                    self.losses.append(self.train_models())
-            if not self.train_per_step:
-               self.losses.append(self.train_models())
+            self.reward_sums.append(reward_sum)
+            self.running_reward = reward_sum if self.running_reward is None \
+                                             else self.running_reward * 0.99 + reward_sum * 0.01
+
+            for _ in range(self.num_trainings):
+                self.losses.append(self.train_models())
 
             render_this_episode = self.render and (self.overall_episode_number % self.render_every == 0)
             evaluation_reward = self.run(render=render_this_episode)
-            self.reward_sums.append((reward_sum, evaluation_reward))
+            self.eval_reward_sums.append(evaluation_reward)
 
             if self.save_path is not None and (self.overall_episode_number % self.save_every == 0):
                 self.save_models(self.save_path)
-                self.save_results(self.save_path, self.losses, self.reward_sums)
+                self.save_results(self.save_path, self.losses, self.reward_sums, self.eval_reward_sums)
 
-            self.running_reward = reward_sum if self.running_reward is None else self.running_reward * 0.99 + reward_sum * 0.01
             msg = 'episode: {}  steps: {}  running train reward: {:.4f}  eval reward: {:.4f}'
             print(msg.format(self.overall_episode_number, self.overall_step, self.running_reward, evaluation_reward))
 
         if self.save_path is not None:
             self.save(self.save_path)
-        return self.reward_sums, self.losses
+        return self.reward_sums, self.eval_reward_sums, self.losses
 
     def run(self, render=True):
         state = self.env.reset()
@@ -213,11 +215,12 @@ class DDPG:
         self.actor.save(path)
         self.critic.save(path)
 
-    def save_results(self, path, losses, rewards):
+    def save_results(self, path, losses, train_rewards, eval_rewards):
         losses = np.array([l for l in losses if l[0] is not None])
-        rewards = np.array(rewards)
+        train_rewards, eval_rewards = np.array(train_rewards), np.array(eval_rewards)
         np.savetxt(os.path.join(path, 'losses.csv'), losses, delimiter=',', header='critic,actor', comments='')
-        np.savetxt(os.path.join(path, 'rewards.csv'), rewards, delimiter=',', header='train,evaluation', comments='')
+        np.savetxt(os.path.join(path, 'train_rewards.csv'), train_rewards, delimiter=',')
+        np.savetxt(os.path.join(path, 'eval_rewards.csv'), eval_rewards, delimiter=',')
 
     def save_memory(self, path):
         self.memory.save(path)

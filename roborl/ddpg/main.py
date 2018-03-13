@@ -4,7 +4,6 @@ import os
 
 import gym
 
-
 from ddpg import DDPG
 from models import Actor, Critic
 
@@ -22,7 +21,7 @@ def run(args):
         ddpg = DDPG(env, actor, critic, args.replay_memory, args.batch_size, args.gamma,
                     args.tau, args.lr_actor, args.lr_critic, args.decay_critic,
                     render=args.render, evaluate=args.evaluate, save_path=args.save_path,
-                    save_every=args.save_every, train_per_step=args.train_per_step,
+                    save_every=args.save_every, num_trainings=args.num_trainings,
                     exploration_type=args.exploration_type)
         signal.signal(signal.SIGUSR1, lambda a, b: ddpg.save(args.save_path))
         if args.continue_training:
@@ -53,11 +52,8 @@ if __name__ == '__main__':
     parser.add_argument('--evaluate', type=int, default=10)
     parser.add_argument('--save_path', default=None)
     parser.add_argument('--save_every', type=int, default=10)
+    parser.add_argument('--num_trainings', type=int, default=50)
     parser.add_argument('--exploration_type', choices=['action', 'param'], default='action')
-    train_when_parser = parser.add_mutually_exclusive_group(required=False)
-    train_when_parser.add_argument('--train_per_episode', dest='train_per_step', action='store_false')
-    train_when_parser.add_argument('--train_per_step', dest='train_per_step', action='store_true')
-    parser.set_defaults(train_per_step=True)
     parser.add_argument('--batchnorm', default=False, dest='batchnorm', action='store_true')
     parser.add_argument('--continue', default=False, dest='continue_training', action='store_true')
     parser.add_argument('--layernorm', default=False, dest='layernorm', action='store_true')
