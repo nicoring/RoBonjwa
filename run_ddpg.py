@@ -52,12 +52,8 @@ if __name__ == '__main__':
     parser.add_argument('--evaluate', type=int, default=10)
     parser.add_argument('--save_path', default=None)
     parser.add_argument('--save_every', type=int, default=10)
-<<<<<<< HEAD:run_ddpg.py
-    parser.add_argument('--num_trainings', type=int, default=5)
-=======
     parser.add_argument('--num_trainings', type=int, default=50)
     parser.add_argument('--exploration_type', choices=['action', 'param'], default='action')
->>>>>>> master:roborl/ddpg/main.py
     parser.add_argument('--batchnorm', default=False, dest='batchnorm', action='store_true')
     parser.add_argument('--continue', default=False, dest='continue_training', action='store_true')
     parser.add_argument('--layernorm', default=False, dest='layernorm', action='store_true')
