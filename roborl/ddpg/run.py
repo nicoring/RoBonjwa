@@ -1,7 +1,7 @@
 import argparse
 
 import gym
-import roboschool
+
 
 from ddpg import DDPG
 from models import Actor, SharedControllerActor, Critic
