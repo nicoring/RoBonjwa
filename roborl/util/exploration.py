@@ -8,7 +8,7 @@ from noise import ParamNoise
 
 use_cuda = torch.cuda.is_available()
 
-class ActionNoisePolicy:
+class ActionNoise:
 
     def __init__(self, actor, env, ou_theta, ou_sigma):
         self.actor = actor
@@ -31,7 +31,7 @@ class ActionNoisePolicy:
     def reset(self):
         self.random_process.reset()
     
-class ParamNoisePolicy:
+class ParamNoise:
 
     def __init__(self, actor, batch_size, memory):
         self.actor = actor
