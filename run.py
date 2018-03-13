@@ -1,10 +1,10 @@
 import argparse
 
 import gym
-import roboschool
+# import roboschool
 
-from ddpg import DDPG
-from models import Actor, SharedControllerActor, Critic
+from roborl.ddpg.ddpg import DDPG
+from roborl.util.models import Actor, SharedControllerActor, Critic
 
 def run(args):
     env = gym.make(args.env)

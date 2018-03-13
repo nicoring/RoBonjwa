@@ -5,21 +5,22 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torch.autograd import Variable
+from tensorboardX import SummaryWriter
 
-from random_process import OrnsteinUhlenbeckProcess
-from memory import ReplayMemory
+from .random_process import OrnsteinUhlenbeckProcess
+from .memory import ReplayMemory
 
 
 use_cuda = torch.cuda.is_available()
 FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 Tensor = FloatTensor
-
+writer = SummaryWriter()
 
 class DDPG:
     def __init__(self, env, actor_model, critic_model, memory=10000, batch_size=64, gamma=0.99, 
                  tau=0.001, actor_lr=1e-4, critic_lr=1e-3, critic_decay=1e-2, ou_theta=0.15,
                  ou_sigma=0.2, render=None, evaluate=None, save_path=None, save_every=10,
-                 render_every=10, num_trainings=100):
+                 render_every=10, num_trainings=10):
         self.env = env
         self.actor = actor_model
         self.actor_target = actor_model.clone()
@@ -50,6 +51,7 @@ class DDPG:
         self.reward_sums = []
         self.eval_reward_sums = []
         self.losses = []
+        self.num_train = 0
 
     def update(self, target, source):
         zipped = zip(target.parameters(), source.parameters())
@@ -64,8 +66,11 @@ class DDPG:
         mini_batch = self.memory.sample_batch(self.batch_size)
         critic_loss = self.train_critic(mini_batch)
         actor_loss = self.train_actor(mini_batch)
+        writer.add_scalar('critic_loss', critic_loss.data[0], self.num_train)
+        writer.add_scalar('actor_loss', actor_loss.data[0], self.num_train)
         self.update(self.actor_target, self.actor)
         self.update(self.critic_target, self.critic)
+        self.num_train += 1
         return critic_loss.data[0], actor_loss.data[0]
 
     def mse(self, inputs, targets):
@@ -151,16 +156,19 @@ class DDPG:
                 self.memory.add(state, action, reward, next_state, done)
                 state = next_state
                 reward_sum += reward[0]
+                for _ in range(self.num_trainings):
+                    self.losses.append(self.train_models())
+
             self.reward_sums.append(reward_sum)
             self.running_reward = reward_sum if self.running_reward is None \
                                              else self.running_reward * 0.99 + reward_sum * 0.01
 
-            for _ in range(self.num_trainings):
-                self.losses.append(self.train_models())
-
             render_this_episode = self.render and (self.overall_episode_number % self.render_every == 0)
             evaluation_reward = self.run(render=render_this_episode)
             self.eval_reward_sums.append(evaluation_reward)
+
+            writer.add_scalar('eval_reward', evaluation_reward, self.overall_episode_number)
+            writer.add_scalar('train_reward', reward_sum, self.overall_episode_number)
 
             if self.save_path is not None and (self.overall_episode_number % self.save_every == 0):
                 self.save_models(self.save_path)

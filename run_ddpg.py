@@ -3,10 +3,9 @@ import signal
 import os
 
 import gym
-import roboschool
 
-from ddpg import DDPG
-from models import Actor, Critic
+from roborl.ddpg.ddpg import DDPG
+from roborl.util.models import Actor, Critic
 
 def run(args):
     env = gym.make(args.env)
@@ -18,21 +17,19 @@ def run(args):
     else:
         actor = Actor(n_states, n_actions, args.actor_hidden, args.batchnorm)
         critic = Critic(n_states, n_actions, args.critic_hidden, args.batchnorm)
-    try:
-        ddpg = DDPG(env, actor, critic, args.replay_memory, args.batch_size, args.gamma,
-                    args.tau, args.lr_actor, args.lr_critic, args.decay_critic,
-                    render=args.render, evaluate=args.evaluate, save_path=args.save_path,
-                    save_every=args.save_every, num_trainings=args.num_trainings)
-        signal.signal(signal.SIGUSR1, lambda a, b: ddpg.save(args.save_path))
-        if args.continue_training:
-            ddpg.load_state(args.save_path)
-            ddpg.load_memory(args.save_path)
-            ddpg.load_optim_dicts(args.save_path)
-        if args.warmup and not args.continue_training:
-            ddpg.warmup(10*args.batch_size)
-        rewards, losses = ddpg.train(args.steps)
-    finally:
-        env.close()
+
+    ddpg = DDPG(env, actor, critic, args.replay_memory, args.batch_size, args.gamma,
+                args.tau, args.lr_actor, args.lr_critic, args.decay_critic,
+                render=args.render, evaluate=args.evaluate, save_path=args.save_path,
+                save_every=args.save_every, num_trainings=args.num_trainings)
+    signal.signal(signal.SIGUSR1, lambda a, b: ddpg.save(args.save_path))
+    if args.continue_training:
+        ddpg.load_state(args.save_path)
+        ddpg.load_memory(args.save_path)
+        ddpg.load_optim_dicts(args.save_path)
+    if args.warmup and not args.continue_training:
+        ddpg.warmup(10*args.batch_size)
+    rewards, eval_rewards, losses = ddpg.train(args.steps)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch DDPG implementation')
@@ -52,7 +49,7 @@ if __name__ == '__main__':
     parser.add_argument('--evaluate', type=int, default=10)
     parser.add_argument('--save_path', default=None)
     parser.add_argument('--save_every', type=int, default=10)
-    parser.add_argument('--num_trainings', type=int, default=50)
+    parser.add_argument('--num_trainings', type=int, default=5)
     parser.add_argument('--batchnorm', default=False, dest='batchnorm', action='store_true')
     parser.add_argument('--continue', default=False, dest='continue_training', action='store_true')
 
