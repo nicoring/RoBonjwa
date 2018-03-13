@@ -7,8 +7,9 @@ import torch.optim as optim
 from torch.autograd import Variable
 from tensorboardX import SummaryWriter
 
-from .random_process import OrnsteinUhlenbeckProcess
-from .memory import ReplayMemory
+
+from roborl.util.memory import ReplayMemory
+from roborl.util.exploration import ActionNoise, ParamNoise
 
 
 use_cuda = torch.cuda.is_available()
@@ -20,7 +21,7 @@ class DDPG:
     def __init__(self, env, actor_model, critic_model, memory=10000, batch_size=64, gamma=0.99, 
                  tau=0.001, actor_lr=1e-4, critic_lr=1e-3, critic_decay=1e-2, ou_theta=0.15,
                  ou_sigma=0.2, render=None, evaluate=None, save_path=None, save_every=10,
-                 render_every=10, num_trainings=10):
+                 render_every=10, num_trainings=100, exploration_type='action', param_noise_bs=32):
         self.env = env
         self.actor = actor_model
         self.actor_target = actor_model.clone()
@@ -33,8 +34,10 @@ class DDPG:
         self.batch_size = batch_size
         self.gamma = gamma
         self.tau = tau
-        self.random_process = OrnsteinUhlenbeckProcess(env.action_space.shape[0],
-                                                       theta=ou_theta, sigma=ou_sigma)
+        if exploration_type == 'action':
+            self.exploration = ActionNoise(self.actor, env, ou_theta, ou_sigma)
+        else:
+            self.exploration = ParamNoise(self.actor, param_noise_bs, self.memory)
         self.optim_critic = optim.Adam(self.critic.parameters(), lr=critic_lr,
                                        weight_decay=critic_decay)
         self.optim_actor = optim.Adam(self.actor.parameters(), lr=actor_lr)
@@ -106,18 +109,6 @@ class DDPG:
     def prep_state(self, s):
         return Variable(torch.from_numpy(s).float().unsqueeze(0))
 
-    def select_action(self, state, exploration=True):
-        if use_cuda:
-            state = state.cuda()
-        self.actor.eval()
-        action = self.actor(state)
-        self.actor.train()
-        if exploration:
-            noise = Variable(torch.from_numpy(self.random_process.sample()).float())
-            if use_cuda:
-                noise = noise.cuda()
-            action = action + noise
-        return action
 
     def step(self, action):
         next_state, reward, done, _ = self.env.step(action.data.cpu().numpy()[0])
@@ -130,10 +121,10 @@ class DDPG:
         while warmup_step <= num_steps:
             done = False
             state = self.prep_state(self.env.reset())
-            self.random_process.reset()
+            self.exploration.reset()
             while not done:
                 warmup_step += 1
-                action = self.select_action(state)
+                action = self.exploration.select_action(state)
                 next_state, reward, done = self.step(action)
                 self.memory.add(state, action, reward, next_state, done)
                 state = next_state
@@ -146,12 +137,12 @@ class DDPG:
             done = False
             state = self.prep_state(self.env.reset())
             reward_sum = 0
-            self.random_process.reset()
+            self.exploration.reset()
 
             while not done:
                 self.overall_step += 1
                 train_step += 1
-                action = self.select_action(state)
+                action = self.exploration.select_action(state)
                 next_state, reward, done = self.step(action)
                 self.memory.add(state, action, reward, next_state, done)
                 state = next_state
@@ -188,7 +179,7 @@ class DDPG:
         while not done:
             if render:
                 self.env.render()
-            action = self.select_action(self.prep_state(state),
+            action = self.exploration.select_action(self.prep_state(state),
                                         exploration=False)
             state, reward, done, _ = self.env.step(action.data.cpu().numpy()[0])
             reward_sum += reward
