@@ -22,7 +22,8 @@ def run(args):
                     args.tau, args.lr_actor, args.lr_critic, args.decay_critic,
                     render=args.render, evaluate=args.evaluate, save_path=args.save_path,
                     save_every=args.save_every, num_trainings=args.num_trainings,
-                    exploration_type=args.exploration_type)
+                    exploration_type=args.exploration_type, train_every=args.train_every,
+                    evaluate_every=args.evaluate_every)
         signal.signal(signal.SIGUSR1, lambda a, b: ddpg.save(args.save_path))
         if args.continue_training:
             ddpg.load_state(args.save_path)
@@ -30,7 +31,7 @@ def run(args):
             ddpg.load_optim_dicts(args.save_path)
         if args.warmup and not args.continue_training:
             ddpg.warmup(10*args.batch_size)
-        rewards, losses = ddpg.train(args.steps)
+        rewards, eval_rewards, losses = ddpg.train(args.steps)
     finally:
         env.close()
 
@@ -53,6 +54,8 @@ if __name__ == '__main__':
     parser.add_argument('--save_path', default=None)
     parser.add_argument('--save_every', type=int, default=10)
     parser.add_argument('--num_trainings', type=int, default=50)
+    parser.add_argument('--train_every', type=int, default=50)
+    parser.add_argument('--evaluate_every', type=int, default=2000)
     parser.add_argument('--exploration_type', choices=['action', 'param'], default='action')
     parser.add_argument('--batchnorm', default=False, dest='batchnorm', action='store_true')
     parser.add_argument('--continue', default=False, dest='continue_training', action='store_true')

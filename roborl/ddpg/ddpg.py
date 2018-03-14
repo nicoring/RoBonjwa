@@ -19,7 +19,8 @@ class DDPG:
     def __init__(self, env, actor_model, critic_model, memory=10000, batch_size=64, gamma=0.99, 
                  tau=0.001, actor_lr=1e-4, critic_lr=1e-3, critic_decay=1e-2, ou_theta=0.15,
                  ou_sigma=0.2, render=None, evaluate=None, save_path=None, save_every=10,
-                 render_every=10, num_trainings=100, exploration_type='action', param_noise_bs=32):
+                 render_every=10, num_trainings=100, exploration_type='action', param_noise_bs=32, 
+                 train_every=1, evaluate_every=2000):
         self.env = env
         self.actor = actor_model
         self.actor_target = actor_model.clone()
@@ -52,6 +53,8 @@ class DDPG:
         self.reward_sums = []
         self.eval_reward_sums = []
         self.losses = []
+        self.train_every = train_every
+        self.evaluate_every = evaluate_every
 
     def update(self, target, source):
         zipped = zip(target.parameters(), source.parameters())
@@ -124,6 +127,7 @@ class DDPG:
                 state = next_state
 
     def train(self, num_steps):
+        simulation_step = 0 
         train_step = 0
 
         while num_steps == None or train_step <= num_steps:
@@ -132,32 +136,34 @@ class DDPG:
             state = self.prep_state(self.env.reset())
             reward_sum = 0
             self.exploration.reset()
-
             while not done:
                 self.overall_step += 1
-                train_step += 1
+                simulation_step += 1
                 action = self.exploration.select_action(state)
                 next_state, reward, done = self.step(action)
                 self.memory.add(state, action, reward, next_state, done)
                 state = next_state
                 reward_sum += reward[0]
+                if simulation_step % self.train_every == 0:
+                    for _ in range(self.num_trainings):
+                        train_step += 1
+                        self.losses.append(self.train_models())
+                if simulation_step % self.evaluate_every == 0:
+                    render_this_episode = self.render and (self.overall_episode_number % self.render_every == 0) #TODO this is broken
+                    evaluation_reward = self.run(render=render_this_episode)
+                    self.eval_reward_sums.append(evaluation_reward)
+                    msg = '---------- eval_episode: {}  steps: {}  eval reward: {:.4f}'
+                    print(msg.format(int(simulation_step / self.evaluate_every), self.overall_step, evaluation_reward))
             self.reward_sums.append(reward_sum)
             self.running_reward = reward_sum if self.running_reward is None \
                                              else self.running_reward * 0.99 + reward_sum * 0.01
-
-            for _ in range(self.num_trainings):
-                self.losses.append(self.train_models())
-
-            render_this_episode = self.render and (self.overall_episode_number % self.render_every == 0)
-            evaluation_reward = self.run(render=render_this_episode)
-            self.eval_reward_sums.append(evaluation_reward)
 
             if self.save_path is not None and (self.overall_episode_number % self.save_every == 0):
                 self.save_models(self.save_path)
                 self.save_results(self.save_path, self.losses, self.reward_sums, self.eval_reward_sums)
 
-            msg = 'episode: {}  steps: {}  running train reward: {:.4f}  eval reward: {:.4f}'
-            print(msg.format(self.overall_episode_number, self.overall_step, self.running_reward, evaluation_reward))
+            msg = 'episode: {}  steps: {}  running train reward: {:.4f}'
+            print(msg.format(self.overall_episode_number, self.overall_step, self.running_reward))
 
         if self.save_path is not None:
             self.save(self.save_path)
