@@ -9,7 +9,7 @@ from tensorboardX import SummaryWriter
 
 
 from roborl.util.memory import ReplayMemory
-from roborl.util.exploration import ActionNoise, ParamNoise
+from roborl.util.exploration import ActionNoiseExploration, ParamNoiseExploration
 
 
 use_cuda = torch.cuda.is_available()
@@ -35,9 +35,9 @@ class DDPG:
         self.gamma = gamma
         self.tau = tau
         if exploration_type == 'action':
-            self.exploration = ActionNoise(self.actor, env, ou_theta, ou_sigma)
+            self.exploration = ActionNoiseExploration(self.actor, env, ou_theta, ou_sigma)
         else:
-            self.exploration = ParamNoise(self.actor, param_noise_bs, self.memory)
+            self.exploration = ParamNoiseExploration(self.actor, param_noise_bs, self.memory)
         self.optim_critic = optim.Adam(self.critic.parameters(), lr=critic_lr,
                                        weight_decay=critic_decay)
         self.optim_actor = optim.Adam(self.actor.parameters(), lr=actor_lr)
@@ -45,6 +45,7 @@ class DDPG:
         self.render_every = render_every
         self.evaluate = evaluate
         self.save_path = save_path
+        os.makedirs(self.save_path, exist_ok=True)
         self.save_every = save_every
         self.num_trainings = num_trainings
         # state
@@ -55,6 +56,13 @@ class DDPG:
         self.eval_reward_sums = []
         self.losses = []
         self.num_train = 0
+
+    def add_graphs(self, actor, critic):
+        sample_state = self.prep_state(np.random.uniform(size=self.env.observation_space.shape))
+        sample_action = self.prep_state(np.random.uniform(size=self.env.action_space.shape))
+        critic_input = [sample_state, sample_action]
+        writer.add_graph(self.actor, sample_state)
+        writer.add_graph(self.critic, critic_input)
 
     def update(self, target, source):
         zipped = zip(target.parameters(), source.parameters())
@@ -101,8 +109,6 @@ class DDPG:
         loss = -pred_q.mean()
         self.optim_actor.zero_grad()
         loss.backward()
-#         for param in self.actor.parameters():
-#             param.grad.data.clamp_(-1, 1)
         self.optim_actor.step()
         return loss
 
@@ -202,7 +208,7 @@ class DDPG:
 
     def save(self, path):
         self.save_models(path)
-        self.save_results(path, self.losses, self.reward_sums)
+        self.save_results(path, self.losses, self.reward_sums, self.eval_reward_sums)
         self.save_memory(path)
         self.save_optim_dicts(path)
         self.save_state(path)

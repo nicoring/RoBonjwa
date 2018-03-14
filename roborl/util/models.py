@@ -32,7 +32,27 @@ class MyModule(nn.Module):
         torch.save(self.state_dict(), os.path.join(path, '%s.model' % filename))
 
 
-class Actor(MyModule):
+class Policy:
+    def run(self, env, render):
+        self.eval()
+        state = env.reset()
+        done = False
+        reward_sum = 0
+        while not done:
+            if render:
+                env.render()
+            state = Variable(torch.from_numpy(state).float().unsqueeze(0))
+            action = self.select_action(state)
+            state, reward, done, _ = env.step(action.data.cpu().numpy()[0])
+            reward_sum += reward
+        self.train()
+        return reward_sum
+
+    def select_action(self, state):
+        return self.forward(state)
+
+
+class Actor(MyModule, Policy):
     def __init__(self, n_states, n_actions, n_hidden, use_batch_norm=False, use_layer_norm=False):
         super().__init__()
         self.args = (n_states, n_actions, n_hidden, use_batch_norm, use_layer_norm)
@@ -44,11 +64,11 @@ class Actor(MyModule):
         self.lin2 = nn.Linear(n_hidden, n_hidden)
         self.lin3 = nn.Linear(n_hidden, n_actions)
         if self.use_batch_norm:
-            self.bn_1 = nn.BatchNorm1d(n_hidden)
-            self.bn_2 = nn.BatchNorm1d(n_hidden)
+            self.norm_1 = nn.BatchNorm1d(n_hidden)
+            self.norm_2 = nn.BatchNorm1d(n_hidden)
         if self.use_layer_norm:
-            self.ln_1 = nn.LayerNorm(n_hidden)
-            self.ln_2 = nn.LayerNorm(n_hidden)
+            self.norm_1 = nn.LayerNorm(n_hidden)
+            self.norm_2 = nn.LayerNorm(n_hidden)
         self.init_weights()
 
     def init_weights(self):
@@ -60,23 +80,19 @@ class Actor(MyModule):
 
     def forward(self, x):
         x = self.lin1(x)
-        if self.use_batch_norm:
-            x = self.bn_1(x)
-        if self.use_layer_norm:
-            x = self.ln_1(x)
+        if self.use_batch_norm or self.use_layer_norm:
+            x = self.norm_1(x)
         x = F.relu(x)
         x = self.lin2(x)
-        if self.use_batch_norm:
-            x = self.bn_2(x)
-        if self.use_layer_norm:
-            x = self.ln_2(x)
+        if self.use_batch_norm or self.use_layer_norm:
+            x = self.norm_2(x)
         x = F.relu(x)
         x = F.tanh(self.lin3(x))
         return x
 
 
 class SharedControllerActor(MyModule):
-    def __init__(self, n_states, controller_conf, controller_list, n_hidden, use_batch_norm=False):
+    def __init__(self, n_states, controller_conf, controller_list, n_hidden, use_batch_norm=False, use_layer_norm=False):
         """
         constructs a policy network with locally connected controllers
         that can share weights
@@ -104,17 +120,23 @@ class SharedControllerActor(MyModule):
         >> controller_list = ['arm', 'arm', 'leg', 'leg']
         """
         super().__init__()
-        self.args = (n_states, controller_conf, controller_list, n_hidden, use_batch_norm)
+         if use_batch_norm and use_layer_norm:
+            raise ValueError("Dont use both batch and layer norm")
+        self.args = (n_states, controller_conf, controller_list, n_hidden, use_batch_norm, use_layer_norm)
         self.use_batch_norm = use_batch_norm
         self.lin1 = nn.Linear(n_states, n_hidden)
         self.lin2 = nn.Linear(n_hidden, n_hidden)
         self.controller_inputs, self.controller = self.create_controllers(controller_conf, controller_list, n_hidden)
         self.controller_list = controller_list
         if use_batch_norm:
-            self.bn_1 = nn.BatchNorm1d(n_hidden)
-            self.bn_2 = nn.BatchNorm1d(n_hidden)
-            self.controller_input_bns = self.controller_bn(self.controller_inputs)
-        self.init_weights()
+            self.norm_1 = nn.BatchNorm1d(n_hidden)
+            self.norm_2 = nn.BatchNorm1d(n_hidden)
+            self.controller_input_bns = self.controller_norm(self.controller_inputs)
+        if use_layer_norm:
+            self.norm_1 = nn.LayerNorm(n_hidden)
+            self.norm_2 = nn.LayerNorm(n_hidden)
+            self.controller_input_norms = self.controller_norm(self.controller_inputs) 
+            self.init_weights()
 
     def create_controllers(self, controller_conf, controller_list, n_hidden):
         shared_controller = {}
@@ -133,11 +155,14 @@ class SharedControllerActor(MyModule):
 
         return controller_inputs, shared_controller
 
-    def controller_bn(self, controller_inputs):
+    def controller_norms(self, controller_inputs):
         controller_input_bns = []
         for i, input_layer in enumerate(controller_inputs):
-            bn = nn.BatchNorm1d(input_layer.out_features)
-            self.add_module('controller_input_bn_%d' % i, bn)
+            if self.use_batch_norm:
+                norm = nn.BatchNorm1d(input_layer.out_features)
+            if self.use_layer_norm:
+                norm = nn.LayerNorm(input_layer.out_features)
+            self.add_module('controller_input_norm_%d' % i, norm)
             controller_input_bns.append(bn)
         return controller_input_bns
 
@@ -205,7 +230,7 @@ class Critic(MyModule):
         return x
 
 
-class GaussianPolicy(MyModule):
+class GaussianPolicy(MyModule, Policy):
     def __init__(self, n_states, n_actions, n_hidden, use_batch_norm=False, initial_sigma=0.1):
         super().__init__()
         self.args = (n_states, n_actions, n_hidden, use_batch_norm, initial_sigma)
@@ -244,3 +269,6 @@ class GaussianPolicy(MyModule):
         sigmas = sigmas.expand_as(mus)
         dist = torch.distributions.Normal(mus, sigmas)
         return dist
+
+    def select_action(self, state):
+        return self.forward(state).mean
