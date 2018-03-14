@@ -199,7 +199,7 @@ class DDPG:
 
     def save(self, path):
         self.save_models(path)
-        self.save_results(path, self.losses, self.reward_sums)
+        self.save_results(path, self.losses, self.reward_sums, self.eval_reward_sums)
         self.save_memory(path)
         self.save_optim_dicts(path)
         self.save_state(path)
