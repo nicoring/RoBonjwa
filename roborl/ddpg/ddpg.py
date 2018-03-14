@@ -130,7 +130,7 @@ class DDPG:
         simulation_step = 0 
         train_step = 0
 
-        while num_steps == None or train_step <= num_steps:
+        while num_steps == None or simulation_step <= num_steps:
             self.overall_episode_number += 1
             done = False
             state = self.prep_state(self.env.reset())
