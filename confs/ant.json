@@ -1,0 +1,9 @@
+{
+    "controller_conf": {
+        "leg": {
+            "actions": 2,
+            "hidden": 16
+        }
+    },
+    "controller_list": ["leg", "leg", "leg", "leg"]
+}
