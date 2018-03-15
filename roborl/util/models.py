@@ -120,7 +120,7 @@ class SharedControllerActor(MyModule):
         >> controller_list = ['arm', 'arm', 'leg', 'leg']
         """
         super().__init__()
-         if use_batch_norm and use_layer_norm:
+        if use_batch_norm and use_layer_norm:
             raise ValueError("Dont use both batch and layer norm")
         self.args = (n_states, controller_conf, controller_list, n_hidden, use_batch_norm, use_layer_norm)
         self.use_batch_norm = use_batch_norm

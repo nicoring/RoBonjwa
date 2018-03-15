@@ -21,10 +21,9 @@ def run(args):
 
     ddpg = DDPG(env, actor, critic, args.replay_memory, args.batch_size, args.gamma,
                 args.tau, args.lr_actor, args.lr_critic, args.decay_critic,
-                render=args.render, evaluate=args.evaluate, save_path=args.save_path,
-                save_every=args.save_every, num_trainings=args.num_trainings,
-                exploration_type=args.exploration_type, train_every=args.train_every,
-                evaluate_every=args.evaluate_every)
+                render=args.render, save_path=args.save_path, save_every=args.save_every,
+                num_trainings=args.num_trainings, exploration_type=args.exploration_type,
+                train_every=args.train_every, evaluate_every=args.evaluate_every)
     signal.signal(signal.SIGUSR1, lambda a, b: ddpg.save(args.save_path))
     if args.continue_training:
         ddpg.load_state(args.save_path)

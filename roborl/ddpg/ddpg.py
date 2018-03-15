@@ -152,7 +152,7 @@ class DDPG:
                 self.memory.add(state, action, reward, next_state, done)
                 state = next_state
                 reward_sum += reward[0]
-                if simulation_step % self.train_every == 0:
+                if simulation_step % self.train_every == 0 and len(self.memory) >= self.batch_size:
                     for _ in range(self.num_trainings):
                         train_step += 1
                         actor_loss, critic_loss = self.train_models()
