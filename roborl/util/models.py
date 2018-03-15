@@ -33,7 +33,7 @@ class MyModule(nn.Module):
 
 
 class Policy:
-    def run(self, env, render):
+    def run(self, env, render=False):
         self.eval()
         state = env.reset()
         done = False
