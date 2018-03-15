@@ -2,13 +2,12 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
-from random_process import OrnsteinUhlenbeckProcess
-from noise import ParamNoise
+from .noise import ParamNoise, OrnsteinUhlenbeckProcess
 
 
 use_cuda = torch.cuda.is_available()
 
-class ActionNoisePolicy:
+class ActionNoiseExploration:
 
     def __init__(self, actor, env, ou_theta, ou_sigma):
         self.actor = actor
@@ -31,7 +30,7 @@ class ActionNoisePolicy:
     def reset(self):
         self.random_process.reset()
     
-class ParamNoisePolicy:
+class ParamNoiseExploration:
 
     def __init__(self, actor, batch_size, memory):
         self.actor = actor
