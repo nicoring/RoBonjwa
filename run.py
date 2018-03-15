@@ -8,7 +8,7 @@ def run(args):
     env = gym.make(args.env)
     n_states = env.observation_space.shape[0]
     n_actions = env.action_space.shape[0]
-    if 'shared' in args.actor:
+    if 'actor-shared' in args.actor:
         actor = SharedControllerActor.load(args.actor)
     else:
         actor = Actor.load(args.actor)

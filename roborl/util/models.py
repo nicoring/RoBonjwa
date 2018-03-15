@@ -91,7 +91,7 @@ class Actor(MyModule, Policy):
         return x
 
 
-class SharedControllerActor(MyModule):
+class SharedControllerActor(MyModule, Policy):
     def __init__(self, n_states, controller_conf, controller_list, n_hidden, use_batch_norm=False, use_layer_norm=False):
         """
         constructs a policy network with locally connected controllers
@@ -124,6 +124,7 @@ class SharedControllerActor(MyModule):
             raise ValueError("Dont use both batch and layer norm")
         self.args = (n_states, controller_conf, controller_list, n_hidden, use_batch_norm, use_layer_norm)
         self.use_batch_norm = use_batch_norm
+        self.use_layer_norm = use_layer_norm
         self.lin1 = nn.Linear(n_states, n_hidden)
         self.lin2 = nn.Linear(n_hidden, n_hidden)
         self.controller_inputs, self.controller = self.create_controllers(controller_conf, controller_list, n_hidden)
@@ -131,12 +132,12 @@ class SharedControllerActor(MyModule):
         if use_batch_norm:
             self.norm_1 = nn.BatchNorm1d(n_hidden)
             self.norm_2 = nn.BatchNorm1d(n_hidden)
-            self.controller_input_bns = self.controller_norm(self.controller_inputs)
+            self.controller_input_bns = self.controller_norms(self.controller_inputs)
         if use_layer_norm:
             self.norm_1 = nn.LayerNorm(n_hidden)
             self.norm_2 = nn.LayerNorm(n_hidden)
-            self.controller_input_norms = self.controller_norm(self.controller_inputs) 
-            self.init_weights()
+            self.controller_input_norms = self.controller_norms(self.controller_inputs)
+        self.init_weights()
 
     def create_controllers(self, controller_conf, controller_list, n_hidden):
         shared_controller = {}
@@ -156,15 +157,16 @@ class SharedControllerActor(MyModule):
         return controller_inputs, shared_controller
 
     def controller_norms(self, controller_inputs):
-        controller_input_bns = []
+        controller_input_norms = []
+        assert self.use_batch_norm or self.use_layer_norm
         for i, input_layer in enumerate(controller_inputs):
             if self.use_batch_norm:
                 norm = nn.BatchNorm1d(input_layer.out_features)
             if self.use_layer_norm:
                 norm = nn.LayerNorm(input_layer.out_features)
             self.add_module('controller_input_norm_%d' % i, norm)
-            controller_input_bns.append(bn)
-        return controller_input_bns
+            controller_input_norms.append(norm)
+        return controller_input_norms
 
     def init_weights(self):
         for l in [self.lin1, self.lin2, *self.controller_inputs, *self.controller.values()]:
@@ -175,20 +177,20 @@ class SharedControllerActor(MyModule):
 
     def forward(self, x):
         x = self.lin1(x)
-        if self.use_batch_norm:
-            x = self.bn_1(x)
+        if self.use_batch_norm or self.use_layer_norm:
+            x = self.norm_1(x)
         x = F.relu(x)
         x = self.lin2(x)
-        if self.use_batch_norm:
-            x = self.bn_2(x)
+        if self.use_batch_norm or self.use_layer_norm:
+            x = self.norm_2(x)
         x = F.relu(x)
  
         outs = []
         i = 0
         for name, input_layer in zip(self.controller_list, self.controller_inputs):
             xc = input_layer(x)
-            if self.use_batch_norm:
-                xc = self.controller_input_bns[i](xc)
+            if self.use_batch_norm or self.use_layer_norm:
+                xc = self.controller_input_norms[i](xc)
                 i += 1
             sc = F.relu(xc)
             outs.append(self.controller[name](xc))

@@ -182,19 +182,6 @@ class DDPG:
             self.save(self.save_path)
         return self.reward_sums, self.eval_reward_sums, self.losses
 
-    def run(self, render=True):
-        state = self.env.reset()
-        done = False
-        reward_sum = 0
-        while not done:
-            if render:
-                self.env.render()
-            action = self.exploration.select_action(self.prep_state(state),
-                                        exploration=False)
-            state, reward, done, _ = self.env.step(action.data.cpu().numpy()[0])
-            reward_sum += reward
-        return reward_sum
-
     def load_state(self, path):
         filename = os.path.join(path, 'ddpg_state.pkl')
         with open(filename, 'rb') as f:

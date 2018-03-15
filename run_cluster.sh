@@ -21,6 +21,8 @@ export LD_LIBRARY_PATH=${CUDNN_HOME}/lib64:${CUDA_HOME}/lib64:$LD_LIBRARY_PATH
 
 export LIBRARY_PATH=${CUDNN_HOME}/lib64:$LIBRARY_PATH
 
+export LD_PRELOAD=/usr/lib64/libGLEW.so.1.10:$LD_PRELOAD
+
 export CPATH=${CUDNN_HOME}/include:$CPATH
 
 export PATH=${CUDA_HOME}/bin:${PATH}

@@ -1,11 +1,12 @@
 import argparse
 import signal
 import os
+import json
 
 import gym
 
 from roborl.ddpg.ddpg import DDPG
-from roborl.util.models import Actor, Critic
+from roborl.util.models import Actor, Critic, SharedControllerActor
 
 
 def run(args):
@@ -13,10 +14,21 @@ def run(args):
     n_states = env.observation_space.shape[0]
     n_actions = env.action_space.shape[0]
     if args.continue_training:
-        actor = Actor.load(os.path.join(args.save_path, 'actor'))
+        if args.actortype == 'shared':
+            actor = SharedControllerActor.load(os.path.join(args.save_path, 'actor-shared'))
+        else:
+            actor = Actor.load(os.path.join(args.save_path, 'actor'))
         critic = Critic.load(os.path.join(args.save_path, 'critic'))
     else:
-        actor = Actor(n_states, n_actions, args.actor_hidden, args.batchnorm, args.layernorm)
+        if args.actortype == 'shared':
+            if 'actor_conf' not in args:
+                raise ValueError('actor-conf arg is required for shared actor')
+            with open(args.actor_conf) as f:
+                conf = json.load(f)
+            actor = SharedControllerActor(n_states, conf['controller_conf'], conf['controller_list'],
+                                          args.actor_hidden, args.batchnorm, args.layernorm)
+        else:
+            actor = Actor(n_states, n_actions, args.actor_hidden, args.batchnorm, args.layernorm)
         critic = Critic(n_states, n_actions, args.critic_hidden, args.batchnorm)
 
     ddpg = DDPG(env, actor, critic, args.replay_memory, args.batch_size, args.gamma,
@@ -58,5 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--continue', default=False, dest='continue_training', action='store_true')
     parser.add_argument('--batchnorm', default=False, dest='batchnorm', action='store_true')
     parser.add_argument('--layernorm', default=False, dest='layernorm', action='store_true')
+    parser.add_argument('--actortype', default='non-shared', choices=['non-shared', 'shared'])
+    parser.add_argument('--actor-conf')
     args = parser.parse_args()
     run(args)
