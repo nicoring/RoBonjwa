@@ -15,14 +15,14 @@ from roborl.util.exploration import ActionNoiseExploration, ParamNoiseExploratio
 use_cuda = torch.cuda.is_available()
 FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 Tensor = FloatTensor
-writer = SummaryWriter()
 
 class DDPG:
     def __init__(self, env, actor_model, critic_model, memory=10000, batch_size=64, gamma=0.99, 
                  tau=0.001, actor_lr=1e-4, critic_lr=1e-3, critic_decay=1e-2, ou_theta=0.15,
                  ou_sigma=0.2, render=None, save_path=None, save_every=10, render_every=10,
                  num_trainings=100, exploration_type='action', param_noise_bs=32, train_every=1,
-                 evaluate_every=2000):
+                 evaluate_every=2000, run_name=''):
+        self.writer = writer = SummaryWriter(comment=run_name)
         self.env = env
         self.actor = actor_model
         self.actor_target = actor_model.clone()
@@ -62,8 +62,8 @@ class DDPG:
         sample_state = self.prep_state(np.random.uniform(size=self.env.observation_space.shape))
         sample_action = self.prep_state(np.random.uniform(size=self.env.action_space.shape))
         critic_input = [sample_state, sample_action]
-        writer.add_graph(self.actor, sample_state)
-        writer.add_graph(self.critic, critic_input)
+        self.writer.add_graph(self.actor, sample_state)
+        self.writer.add_graph(self.critic, critic_input)
 
     def update(self, target, source):
         zipped = zip(target.parameters(), source.parameters())
@@ -157,20 +157,20 @@ class DDPG:
                         train_step += 1
                         actor_loss, critic_loss = self.train_models()
                         self.losses.append([actor_loss, critic_loss])
-                        writer.add_scalar('critic_loss', critic_loss, train_step)
-                        writer.add_scalar('actor_loss', actor_loss, train_step)
+                        self.writer.add_scalar('critic_loss', critic_loss, train_step)
+                        self.writer.add_scalar('actor_loss', actor_loss, train_step)
                 if simulation_step % self.evaluate_every == 0:
                     render_this_episode = self.render and (num_evaluations % self.render_every == 0)
                     evaluation_reward = self.actor.run(self.env, render=render_this_episode)
                     self.eval_reward_sums.append(evaluation_reward)
                     msg = '---------- eval_episode: {}  steps: {}  eval reward: {:.4f}'
                     print(msg.format(simulation_step // self.evaluate_every, self.overall_step, evaluation_reward))
-                    writer.add_scalar('eval_reward', evaluation_reward, self.overall_step)
+                    self.writer.add_scalar('eval_reward', evaluation_reward, self.overall_step)
                     num_evaluations += 1
             self.reward_sums.append(reward_sum)
             self.running_reward = reward_sum if self.running_reward is None \
                                              else self.running_reward * 0.99 + reward_sum * 0.01
-            writer.add_scalar('train_reward', reward_sum, self.overall_step)
+            self.writer.add_scalar('train_reward', reward_sum, self.overall_step)
 
             if self.save_path is not None and (self.overall_episode_number % self.save_every == 0):
                 self.save(self.save_path)
