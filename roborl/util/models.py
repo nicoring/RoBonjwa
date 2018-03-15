@@ -126,16 +126,13 @@ class SharedControllerActor(MyModule, Policy):
         self.use_batch_norm = use_batch_norm
         self.use_layer_norm = use_layer_norm
         self.lin1 = nn.Linear(n_states, n_hidden)
-        self.lin2 = nn.Linear(n_hidden, n_hidden)
         self.controller_inputs, self.controller = self.create_controllers(controller_conf, controller_list, n_hidden)
         self.controller_list = controller_list
         if use_batch_norm:
             self.norm_1 = nn.BatchNorm1d(n_hidden)
-            self.norm_2 = nn.BatchNorm1d(n_hidden)
             self.controller_input_bns = self.controller_norms(self.controller_inputs)
         if use_layer_norm:
             self.norm_1 = nn.LayerNorm(n_hidden)
-            self.norm_2 = nn.LayerNorm(n_hidden)
             self.controller_input_norms = self.controller_norms(self.controller_inputs)
         self.init_weights()
 
@@ -169,7 +166,7 @@ class SharedControllerActor(MyModule, Policy):
         return controller_input_norms
 
     def init_weights(self):
-        for l in [self.lin1, self.lin2, *self.controller_inputs, *self.controller.values()]:
+        for l in [self.lin1, *self.controller_inputs, *self.controller.values()]:
             nn.init.xavier_uniform(l.weight)
 
     def save(self, path):
@@ -179,10 +176,6 @@ class SharedControllerActor(MyModule, Policy):
         x = self.lin1(x)
         if self.use_batch_norm or self.use_layer_norm:
             x = self.norm_1(x)
-        x = F.relu(x)
-        x = self.lin2(x)
-        if self.use_batch_norm or self.use_layer_norm:
-            x = self.norm_2(x)
         x = F.relu(x)
  
         outs = []

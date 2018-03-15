@@ -36,7 +36,7 @@ def run(args):
                 render=args.render, save_path=args.save_path, save_every=args.save_every,
                 num_trainings=args.num_trainings, exploration_type=args.exploration_type,
                 train_every=args.train_every, evaluate_every=args.evaluate_every,
-                run_name=args.run_name)
+                run_name=args.run_name, num_evaluations=args.num_evaluations)
     signal.signal(signal.SIGUSR1, lambda a, b: ddpg.save(args.save_path))
     if args.continue_training:
         ddpg.load_state(args.save_path)
@@ -74,5 +74,6 @@ if __name__ == '__main__':
     parser.add_argument('--actortype', default='non-shared', choices=['non-shared', 'shared'])
     parser.add_argument('--actor-conf')
     parser.add_argument('--run-name', default='')
+    parser.add_argument('--num_evaluations', type=int, default=1)
     args = parser.parse_args()
     run(args)
